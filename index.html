@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RTAQ: Reasoning Termination-Aware Quantization for Mixture-of-Experts</title>
+  <meta name="description" content="RTAQ keeps the ~2% of routed experts that decide when a reasoning model stops thinking at higher precision, and quantizes everything else to ~2 bits. Near-BF16 accuracy and generation length at 2.02 bits per routed-expert weight.">
+  <meta name="theme-color" content="#0b0b0c">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="RTAQ: Reasoning Termination-Aware Quantization for MoE">
+  <meta property="og:description" content="2-bit reasoning MoEs don't forget how to solve — they forget how to stop. RTAQ protects the </think>-specific experts.">
+  <meta property="og:image" content="assets/img/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="RTAQ: Reasoning Termination-Aware Quantization for MoE">
+  <meta name="twitter:description" content="2-bit reasoning MoEs don't forget how to solve — they forget how to stop. RTAQ protects the </think>-specific experts.">
+  <meta name="twitter:image" content="assets/img/og-image.png">
+
+  <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div class="progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+  <!-- ============================== NAV ============================== -->
+  <header class="nav" id="nav">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#top" aria-label="RTAQ — back to top">
+        <img src="assets/img/logo-white.svg" alt="RTAQ" width="81" height="30">
+      </a>
+      <button class="nav-toggle" id="navToggle" aria-label="Open menu" aria-expanded="false"><span></span><span></span></button>
+      <nav class="nav-links" id="navLinks">
+        <a href="#overview">Overview</a>
+        <a href="#discovery">Observations</a>
+        <a href="#method">Method</a>
+        <a href="#results">Experiments</a>
+        <a href="#speedup">Speed-up</a>
+        <a href="#bibtex">BibTeX</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <!-- ============================== HERO ============================== -->
+    <section class="hero" id="top">
+      <div class="hero-grid-bg" aria-hidden="true"></div>
+      <div class="wrap hero-inner">
+        <div class="hero-logo" id="heroLogo" aria-label="RTAQ">
+          <img src="assets/img/logo-tiles.svg" alt="RTAQ" class="hero-logo-fallback">
+        </div>
+
+        <h1 class="hero-title">
+          <span class="ht-main"><b>R</b>easoning <b>T</b>ermination-<b>A</b>ware <b>Q</b>uantization</span>
+          <span class="ht-sub">for <b>Mixture-of-Experts Architecture</b></span>
+        </h1>
+
+        <p class="authors">
+          <span><a href="https://minjaechoics.github.io/" target="_blank" rel="noopener">MinJae Choi</a><sup>1</sup></span><span><a href="https://seung-gyeom.github.io/" target="_blank" rel="noopener">Seung-gyeom Kim</a><sup>2</sup></span><span><a href="https://sites.google.com/view/sukmin-yun" target="_blank" rel="noopener">Sukmin Yun</a><sup>2†</sup></span><span><a href="https://insuhan.github.io/" target="_blank" rel="noopener">Insu Han</a><sup>1†</sup></span>
+        </p>
+        <p class="affil">
+          <span><sup>1</sup>KAIST</span><span><sup>2</sup>Hanyang University</span>
+        </p>
+        <p class="affil-note"><sup>†</sup>Advisor</p>
+        <!-- venue badge: replace "Preprint" with the venue once accepted, e.g. "ICML 2027" -->
+        <p class="venue"><span>Preprint</span></p>
+
+        <div class="hero-links">
+          <a class="pill" data-link="pdf" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h8l6 6v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 2v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+            <span>PDF</span>
+          </a>
+          <a class="pill" data-link="arxiv" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4l14 16M19 4L5 20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            <span>arXiv</span>
+          </a>
+          <a class="pill" data-link="code" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Code</span>
+          </a>
+          <a class="pill" data-link="checkpoints" href="#">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l9 5v10l-9 5-9-5V7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 7l9 5 9-5M12 12v10" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Checkpoints</span>
+          </a>
+        </div>
+
+        <!-- Teaser: the failure mode in one glance -->
+        <div class="teaser reveal" id="teaser">
+          <div class="teaser-head">
+            <span class="kicker">Same question · same ~2-bit budget</span>
+            <p class="teaser-q"><span class="qmark">Q</span>A train travels 210&nbsp;km in 3&nbsp;hours. How far does it travel in one hour?</p>
+          </div>
+          <div class="teaser-grid">
+            <div class="term bad" id="termBad">
+              <div class="term-bar">
+                <span class="term-dot"></span>
+                <span class="term-name">2-bit · <code>&lt;/think&gt;</code> experts unprotected</span>
+                <span class="term-count" data-role="count">0 tok</span>
+              </div>
+              <div class="term-screen">
+                <div class="term-body" data-role="body"></div>
+                <div class="term-over" aria-hidden="true">
+                  <span class="to-icon">✕</span>
+                  <b class="to-title">Budget Exhausted</b>
+                  <span class="to-sub" data-role="sub">32,768 tokens · never emitted &lt;/think&gt;</span>
+                </div>
+              </div>
+              <div class="term-status" data-role="status">thinking…</div>
+            </div>
+            <div class="term good" id="termGood">
+              <div class="term-bar">
+                <span class="term-dot"></span>
+                <span class="term-name">RTAQ · 2.02 bits</span>
+                <span class="term-count" data-role="count">0 tok</span>
+              </div>
+              <div class="term-screen">
+                <div class="term-body" data-role="body"></div>
+                <div class="term-over" aria-hidden="true">
+                  <span class="to-icon">✓</span>
+                  <b class="to-title"><span class="to-tag">&lt;/think&gt;</span> emitted</b>
+                  <span class="to-sub" data-role="sub">answer: 70 km</span>
+                </div>
+              </div>
+              <div class="term-status" data-role="status">thinking…</div>
+            </div>
+          </div>
+          <p class="teaser-cap">Quantized reasoning models rarely forget <em>how to solve</em> — they forget <em>how to stop</em>.
+            <span class="muted">Illustration of the non-termination failure mode studied in the paper.</span></p>
+        </div>
+
+        <div class="stats reveal">
+          <div class="stat">
+            <div class="stat-num"><span data-count="2.02" data-decimals="2">2.02</span></div>
+            <div class="stat-label">bits per routed-expert weight</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">≈<span data-count="2" data-decimals="0">2</span>%</div>
+            <div class="stat-label">of routed experts decide <br>when to stop</div>
+          </div>
+          <div class="stat">
+            <div class="stat-num">≈<span data-count="95" data-decimals="0">95</span>%</div>
+            <div class="stat-label">of BF16 accuracy retained <br>at ~2 bits</div>
+          </div>
+          <div class="stat accent">
+            <div class="stat-num">×<span data-count="2.33" data-decimals="2">2.33</span></div>
+            <div class="stat-label">end-to-end speed-up</div>
+          </div>
+        </div>
+      </div>
+      <a class="scroll-cue" href="#overview" aria-label="Scroll to overview"><span></span></a>
+    </section>
+
+    <!-- ============================== OVERVIEW ============================== -->
+    <section class="section" id="overview">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">01 — Overview</span>
+          <h2 class="sec-title"><span class="outline">Overview</span><span class="solid">Collapse is a <em>stopping</em> problem.</span></h2>
+        </header>
+
+        <div class="overview-grid">
+          <div class="abstract reveal">
+            <p class="lead">Reasoning MoE models quantized to around two bits often collapse on long reasoning — not because they lose knowledge, but because they <strong>fail to stop</strong>.</p>
+            <p>Once a 2-bit model emits <code>&lt;/think&gt;</code>, it answers nearly as accurately as full precision; most errors come from traces that never close. We trace this stop decision to <strong>about 2% of routed experts</strong> that fire consistently at the end of thinking, yet are overlooked by standard sensitivity metrics.</p>
+            <p><strong>RTAQ</strong> keeps these experts at higher precision and fits all other experts into a 2-bit budget, preserving <strong>≈95%</strong> of full-precision performance on long-reasoning benchmarks such as AIME.</p>
+          </div>
+
+          <div class="ov-cards">
+            <article class="ov-card reveal">
+              <span class="ov-num">01</span>
+              <h3>Observation</h3>
+              <p>At ~2 bits, reasoning traces drift and loop until the budget runs out. Once <code>&lt;/think&gt;</code> is emitted, the model answers nearly as accurately as BF16.</p>
+            </article>
+            <article class="ov-card reveal">
+              <span class="ov-num">02</span>
+              <h3>Discovery</h3>
+              <p>The stop decision is routed through a tiny, consistent set of <b class="red">&lt;/think&gt;-specific experts</b> that Hessian, Fisher and error-based metrics underrate.</p>
+            </article>
+            <article class="ov-card reveal">
+              <span class="ov-num">03</span>
+              <h3>Method</h3>
+              <p>Freeze them at 3 bits, squeeze everything else into a 2-bit mixed-precision budget — without changing the storage format.</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== DISCOVERY ============================== -->
+    <section class="section alt" id="discovery">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">02 — Observations</span>
+          <h2 class="sec-title"><span class="outline">Existence of</span><span class="solid"><span class="red">&lt;/think&gt;</span>-Specific Experts</span></h2>
+          <p class="sec-lead">In an MoE model, every token is routed to <i>k</i> experts per layer. We looked at the single position where the model decides to stop thinking — and found the same few experts waiting there, every time.</p>
+        </header>
+
+        <!-- 2.1 Router simulation -->
+        <div class="block reveal">
+          <div class="block-head">
+            <span class="step">2.1</span>
+            <div>
+              <h3>Watch the router decide to stop</h3>
+              <p>A reasoning trace streams token by token. Routing looks scattered — until the line break right before <code>&lt;/think&gt;</code>, the <em>closing position</em>, where a fixed group of experts fires together.</p>
+            </div>
+            <span class="tag sim">Interactive simulation</span>
+          </div>
+
+          <div class="router panel">
+            <div class="router-stage" id="routerStage">
+              <canvas id="routerCanvas" aria-label="3D view of MoE layers and routed experts"></canvas>
+              <div class="router-hud">
+                <span>6 MoE layers × 64 routed experts · top-4 routing</span>
+                <span class="hint"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16M4 12l4-4M4 12l4 4M20 12l-4-4M20 12l-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>drag to rotate</span>
+              </div>
+              <div class="router-legend">
+                <span><i class="lg lg-route"></i>routed expert</span>
+                <span><i class="lg lg-p"></i><em><code>&lt;/think&gt;</code>-specific (𝒫)<span class="lg-long"> at the closing position</span></em></span>
+              </div>
+              <div class="router-tip" id="routerTip" role="status"></div>
+              <div class="router-flash" id="routerFlash">closing position</div>
+            </div>
+
+            <div class="router-side">
+              <div class="trace-prompt" id="tracePrompt"></div>
+              <div class="trace" id="traceBody" aria-live="polite"></div>
+              <div class="raster-wrap">
+                <div class="raster-label"><span>𝒫 experts selected, per token</span><span id="rasterCount" class="mono"></span></div>
+                <canvas id="rasterCanvas" height="70"></canvas>
+              </div>
+              <div class="router-status" id="routerStatus"></div>
+              <div class="controls">
+                <button class="btn-ctl primary" id="rNext" type="button">New trace</button>
+              </div>
+            </div>
+          </div>
+          <p class="note">Toy model for intuition. Per-token selection rates of 𝒫 follow the paper’s measurements on Qwen3.6-35B-A3B (Fig.&nbsp;5a): ~6% during reasoning, ~41% at ordinary line breaks, and ~83% at the closing position. Red marks 𝒫 only at the closing position; the trace stops once <code>&lt;/think&gt;</code> is emitted.</p>
+        </div>
+
+        <!-- 2.2 Histogram + haystack -->
+        <div class="block reveal">
+          <div class="block-head">
+            <span class="step">2.2</span>
+            <div>
+              <h3>A tiny, consistent set</h3>
+              <p>Across real responses, most experts are almost never selected at the closing position. A small cluster is selected nearly <em>every</em> time — far above the uniform-routing rate <i>k</i>/<i>E</i>. Experts above the threshold <span class="math"><i>τ</i> = 0.8</span> form 𝒫.</p>
+            </div>
+            <span class="tag data">Paper data</span>
+          </div>
+
+          <div class="grid-2">
+            <div class="panel">
+              <div class="panel-head">
+                <h4>Activation rate at closing positions, <span class="math"><i>ρ<sub>e</sub></i>(Ω<sub>close</sub>)</span></h4>
+                <span class="src">Fig. 2a · Qwen3-Next-80B-A3B · GPQA-Diamond</span>
+              </div>
+              <div id="histChart" class="chart chart-hist"></div>
+              <div class="kpis">
+                <div><b id="tauCount">363</b><span>experts with <span class="math"><i>ρ<sub>e</sub></i> ≥ 0.8</span></span></div>
+                <div><b id="tauPct">1.48%</b><span>of 24,576 routed experts</span></div>
+                <div><b>0.020</b><span>uniform rate <span class="math"><i>k</i>/<i>E</i></span> = 10/512</span></div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <h4>A needle in the haystack</h4>
+                <span class="src">Fig. 4 · termination-aware experts held at <i>K</i>=8</span>
+              </div>
+              <div class="tabs" id="hayTabs" role="tablist"></div>
+              <div class="hay-wrap"><canvas id="hayCanvas" aria-label="Every routed expert as a cell; termination-aware experts in red"></canvas></div>
+              <div class="kpis">
+                <div><b id="hayTotal">10,240</b><span>routed experts</span></div>
+                <div><b id="hayP" class="red">223</b><span><code>&lt;/think&gt;</code>-specific</span></div>
+                <div><b id="hayPct">2.18%</b><span>share of experts</span></div>
+              </div>
+              <p class="note">Each cell is one routed expert. Counts are from the paper; cell positions are illustrative.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2.3 Fig 5a -->
+        <div class="block reveal">
+          <div class="block-head">
+            <span class="step">2.3</span>
+            <div>
+              <h3>They follow the decision — not the token</h3>
+              <p>The input token at every closing position is a line break. Yet ordinary line breaks in the middle of reasoning select far fewer of these experts. Hover to compare position by position.</p>
+            </div>
+            <span class="tag data">Paper data</span>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h4>Share of 𝒫 selected by the router, aligned to the closing position</h4>
+              <span class="src">Fig. 5a · Qwen3.6-35B-A3B · 373 responses (AIME 2025+2026, GPQA-Diamond) · shading: 95% CI</span>
+            </div>
+            <div class="fig5a">
+              <div id="lineChart" class="chart chart-line"></div>
+              <div class="callouts">
+                <div class="callout red"><b>82.6%</b><span>of 𝒫 selected at the closing position</span></div>
+                <div class="callout"><b>41.0%</b><span>at an ordinary <code>\n</code> — the same input token</span></div>
+                <div class="callout soft"><b>5–7%</b><span>throughout the rest of the reasoning</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2.4 Fig 5b -->
+        <div class="block reveal">
+          <div class="block-head">
+            <span class="step">2.4</span>
+            <div>
+              <h3>Invisible to standard sensitivity metrics</h3>
+              <p>Averaged over ordinary tokens, conventional criteria see these experts only at the few positions where they are decisive. Choose how many experts you could afford to protect and see how many of the 223 each criterion would actually save.</p>
+            </div>
+            <span class="tag data">Paper data</span>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h4>Percentile rank of each <code>&lt;/think&gt;</code>-specific expert among all 10,240 experts</h4>
+              <span class="src">Fig. 5b · Qwen3.6-35B-A3B · 100 = upgraded first · dashed: random expert</span>
+            </div>
+            <div class="fig5b">
+              <div id="stripChart" class="chart chart-strip"></div>
+              <div class="protect">
+                <div class="slider-row">
+                  <label for="topSlider">Protect top</label>
+                  <input type="range" id="topSlider" min="1" max="50" step="1" value="10">
+                  <output id="topOut" class="mono">10%</output>
+                </div>
+                <div id="protectBars" class="protect-bars"></div>
+                <p class="note">Share of the 223 termination-aware experts that fall inside each criterion’s top-<span id="topOut2">10</span>% — i.e. would be kept at higher precision.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ============================== METHOD ============================== -->
+    <section class="section" id="method">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">03 — Method</span>
+          <h2 class="sec-title"><span class="outline">Quantization Method</span><span class="solid">Freeze the few that decide to stop.</span></h2>
+          <p class="sec-lead">RTAQ quantizes only the routed experts — over 97% of the parameters — and keeps every other component in BF16. Three stages, one storage format.</p>
+        </header>
+
+        <!-- 3.0 Concept animation -->
+        <div class="block reveal">
+          <div class="panel sep" id="sep">
+            <div class="sep-steps" role="tablist" aria-label="RTAQ in four steps">
+              <button type="button" class="sep-step is-active" data-step="0"><span>1</span>Route</button>
+              <button type="button" class="sep-step" data-step="1"><span>2</span><em><code>&lt;/think&gt;</code> fires</em></button>
+              <button type="button" class="sep-step" data-step="2"><span>3</span>Separate</button>
+              <button type="button" class="sep-step" data-step="3"><span>4</span>Allocate bits</button>
+            </div>
+            <div class="sep-stage" id="sepStage">
+              <div class="sep-label left" id="sepLabelL"><b>Remaining experts</b><span>avg 2-bit mixed precision</span></div>
+              <div class="sep-label right" id="sepLabelR"><b><code>&lt;/think&gt;</code>-specific experts</b><span>decide when to terminate reasoning</span></div>
+            </div>
+            <div class="sep-foot">
+              <p class="sep-caption" id="sepCaption"></p>
+              <div class="sep-legend" id="sepLegend">
+                <span><i style="background:var(--k3)"></i>K=3 · 1.58 b</span>
+                <span><i style="background:var(--k4)"></i>K=4 · 2 b</span>
+                <span><i style="background:var(--k5)"></i>K=5 · 2.32 b</span>
+                <span><i style="background:var(--k6)"></i>K=6 · 2.58 b</span>
+                <span><i style="background:var(--red)"></i>K=8 · 3 b</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.1 Pipeline figure -->
+        <figure class="pipeline reveal">
+          <button class="zoomable" type="button" data-zoom="assets/img/pipeline.webp" aria-label="Enlarge pipeline figure">
+            <img src="assets/img/pipeline.webp" alt="Overview of RTAQ: (1) codebook bank construction, (2) termination-aware bit allocation, (3) codebook and scaling correction." loading="lazy" width="3780" height="1473">
+            <span class="zoom-hint">Click to enlarge</span>
+          </button>
+          <figcaption><b>Figure 1.</b> Overview of RTAQ. Routed experts are quantized weight-only; <span class="red">&lt;/think&gt;-specific experts</span> are frozen at 3 bits while the remaining experts share an average 2-bit mixed-precision budget.</figcaption>
+        </figure>
+
+        <!-- 3.2 Stages: pick a stage to see it -->
+        <div class="stages reveal" id="stages">
+          <div class="stage-tabs" role="tablist" aria-label="RTAQ stages">
+            <button type="button" class="stage-tab is-active" data-stage="1" role="tab" aria-selected="true"><span class="st-n">I</span><span class="st-t"><small>Stage I</small>Codebook bank</span></button>
+            <button type="button" class="stage-tab" data-stage="2" role="tab" aria-selected="false"><span class="st-n">II</span><span class="st-t"><small>Stage II</small>Termination-aware allocation</span></button>
+            <button type="button" class="stage-tab" data-stage="3" role="tab" aria-selected="false"><span class="st-n">III</span><span class="st-t"><small>Stage III</small>Codebook &amp; scaling correction</span></button>
+          </div>
+
+          <!-- Stage I -->
+          <div class="stage-pane is-active" data-stage="1" role="tabpanel">
+            <div class="stage-text">
+              <h3>Activation-weighted codebook bank</h3>
+              <p>Each routed-expert matrix is row-normalized, <span class="math"><i>Z<sub>ij</sub></i> = (<i>W<sub>ij</sub></i> − <i>μ<sub>i</sub></i>) / <i>σ<sub>i</sub></i></span>, and a codebook is fit for every level <span class="math"><i>K</i> ∈ {3,…,8}</span> by weighted K-means — solved <b>exactly</b> in one dimension by dynamic programming. The mass of each weight is its expected contribution to the layer output.</p>
+              <div class="eq">
+                <span class="math"><i>m<sub>ij</sub></i> = <i>σ<sub>i</sub></i><sup>2</sup> <i>S<sub>jj</sub></i>,&nbsp;&nbsp; min<sub><i>c</i>, <i>q</i></sub> Σ<sub><i>i</i>,<i>j</i></sub> <i>m<sub>ij</sub></i> (<i>Z<sub>ij</sub></i> − <i>c</i><sub><i>q<sub>ij</sub></i></sub>)<sup>2</sup></span>
+              </div>
+              <p>The bank is built once, offline, and reused for any target budget. <span class="math"><i>K</i>=3</span> keeps the symmetric ternary alphabet (−1, 0, +1), which packs five weights per byte.</p>
+            </div>
+            <div class="widget panel">
+              <div class="widget-head"><h4>One codebook per level</h4><span class="tag sim">Toy example</span></div>
+              <p class="widget-sub">One normalized weight row (synthetic, heavy-tailed). Pick a level: the red codewords move to the exact 1-D DP solution on the activation-weighted histogram.</p>
+              <div class="chips k-chips" id="cbK" role="tablist" aria-label="Codebook level"></div>
+              <div id="cbChart" class="chart chart-cb"></div>
+              <div class="kpis small">
+                <div><b id="cbBits">2.00</b><span>bits / weight (log<sub>2</sub><i>K</i>)</span></div>
+                <div><b id="cbErr">—</b><span>weighted MSE</span></div>
+                <div><b id="cbSqnr">—</b><span>SQNR</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stage II -->
+          <div class="stage-pane" data-stage="2" role="tabpanel">
+            <div class="stage-text">
+              <h3>Termination-aware mixed-precision allocation</h3>
+              <p>An expert is <b class="red">termination-aware</b> if it is selected at a fraction <span class="math"><i>τ</i> = 0.8</span> of closing positions. These experts <span class="math">𝒫</span> are pinned at <span class="math"><i>K</i>=8</span> (3 bits).</p>
+              <div class="eq">
+                <span class="math">𝒫 = { <i>e</i> : <i>ρ<sub>e</sub></i>(Ω<sub>close</sub>) ≥ <i>τ</i> }</span>
+              </div>
+              <p>The rest share the remaining budget through a multiple-choice knapsack over loss-aware (Fisher) sensitivities <span class="math">Δ(<i>e</i>, <i>K</i>)</span>, solved by Lagrangian relaxation with bisection on <span class="math"><i>λ</i></span>.</p>
+              <div class="eq">
+                <span class="math">min Σ<sub><i>e</i>∈𝒜</sub> Δ(<i>e</i>, <i>K<sub>e</sub></i>) &nbsp;s.t.&nbsp; Σ<sub><i>e</i>∈𝒜</sub> log<sub>2</sub><i>K<sub>e</sub></i> ≤ <i>B</i>,&nbsp; <i>K<sub>e</sub></i> ∈ {3,…,6}</span>
+              </div>
+            </div>
+            <div class="widget panel">
+              <div class="widget-head"><h4>Bit allocation at 2.00 bits</h4><span class="tag sim">Toy example</span></div>
+              <p class="widget-sub">256 toy experts with synthetic sensitivity curves, allocated by Lagrangian bisection. Outlined cells are termination-aware experts, pinned at <i>K</i>=8.</p>
+              <div id="allocGrid" class="alloc-grid" aria-label="Experts colored by allocated level"></div>
+              <div id="allocBars" class="alloc-bars"></div>
+              <div class="alloc-msg" id="allocMsg"></div>
+            </div>
+          </div>
+
+          <!-- Stage III -->
+          <div class="stage-pane" data-stage="3" role="tabpanel">
+            <div class="stage-text">
+              <h3>Codebook &amp; scaling correction</h3>
+              <p>With the codebook frozen, codes are re-assigned <b>GPTQ-style</b>: each column is snapped to its nearest codeword <em>after</em> absorbing the error of the columns before it, which is propagated through the inverse curvature.</p>
+              <div class="eq">
+                <span class="math"><i>q<sub>j</sub></i> = arg min<sub><i>q</i>∈[<i>K</i>]</sub> | <i>w<sub>j</sub></i> − (<i>μ</i> + <i>σ c<sub>q</sub></i>) |</span>
+              </div>
+              <p>Row affine parameters are refit. At <span class="math"><i>K</i>=4</span> the corrected outputs keep only ~84% of the BF16 norm (App. E.1), so one scalar gain per expert restores the magnitude, folded into the down-projection scale — no extra op, no extra storage. Under one second per expert on CPU.</p>
+              <div class="eq">
+                <span class="math"><i>γ<sub>e</sub></i> = Σ<sub><i>t</i></sub> ⟨<i>q<sub>t,e</sub></i>, <i>r<sub>t,e</sub></i>⟩ / Σ<sub><i>t</i></sub> ‖<i>q<sub>t,e</sub></i>‖<sub>2</sub><sup>2</sup></span>
+              </div>
+            </div>
+            <div class="widget panel">
+              <div class="widget-head"><h4>Sequential re-assignment</h4><span class="tag sim">Toy example</span></div>
+              <p class="widget-sub">A 16-weight row and a fixed 4-level codebook. Grey: original weight · circle: error-compensated target · block: assigned code · <span class="red">red</span>: changed vs. nearest rounding.</p>
+              <div id="gptqChart" class="chart chart-gptq"></div>
+              <div class="kpis small">
+                <div><b id="gChanged">0</b><span>codes changed vs. rounding</span></div>
+                <div><b id="gErrN">—</b><span>output error · nearest rounding</span></div>
+                <div><b id="gErrG" class="red">—</b><span>output error · GPTQ-style</span></div>
+              </div>
+              <div class="gain">
+                <div class="gain-head"><span>Scalar output gain</span></div>
+                <div id="gainChart" class="chart chart-gain"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== RESULTS ============================== -->
+    <section class="section alt" id="results">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">04 — Experiments</span>
+          <h2 class="sec-title"><span class="outline">Strong Performance</span><span class="solid">by preserving <span class="red">&lt;/think&gt;</span>-specific experts</span></h2>
+          <p class="sec-lead">Three sparse MoE models from 30B to 80B parameters, five math, science and coding benchmarks, ~2 bits per routed-expert weight. RTAQ reaches the highest average accuracy of every quantized method on every model — with the fewest bits.</p>
+        </header>
+
+        <!-- 4.1 interactive bars -->
+        <div class="block reveal">
+          <div class="panel res">
+            <div class="res-controls">
+              <div class="tabs" id="resModelTabs" role="tablist"></div>
+              <div class="chips" id="resBenchChips" role="tablist"></div>
+            </div>
+            <div class="res-body">
+              <div id="resBars" class="chart chart-res"></div>
+              <aside class="res-side" id="resSide"></aside>
+            </div>
+            <p class="note">Accuracy (%) · “bits” = average bits per routed-expert weight · Table 1 of the paper. Average = mean over the five benchmarks with GPQA-Diamond counted once (mean of strict and flexible).</p>
+          </div>
+        </div>
+
+        <!-- worst-case drop -->
+        <div class="block reveal">
+          <div class="block-head compact">
+            <h3>Worst-case drop from BF16</h3>
+            <span class="tag data">Paper data</span>
+          </div>
+          <div class="panel">
+            <div class="drop-grid">
+              <div id="dropChart" class="chart chart-drop"></div>
+              <aside class="drop-side">
+                <div class="callout red"><b id="dropOurs">−7.4</b><span>RTAQ’s largest drop over all 18 model–benchmark pairs</span></div>
+                <div class="callout"><b id="dropBase">−16.5 to −35.4</b><span>largest drop of every other quantized method</span></div>
+              </aside>
+            </div>
+            <p class="note">Each bar is the single model–benchmark pair where the method degrades the most relative to BF16 (Table 1). Average accuracy can hide such collapses.</p>
+          </div>
+        </div>
+
+        <!-- 4.2 full table -->
+        <div class="block reveal">
+          <div class="block-head compact">
+            <h3>Table 1 · Full results</h3>
+            <span class="tag data">Paper data</span>
+          </div>
+          <div class="table-wrap"><table class="res-table" id="resTable"></table></div>
+          <p class="note"><b>Bold</b>: best quantized result per model and benchmark.<span class="table-hint"> Swipe the table sideways to see every benchmark →</span></p>
+        </div>
+
+        <!-- 4.3 scatter -->
+        <div class="block reveal">
+          <div class="block-head">
+            <span class="step">4.3</span>
+            <div>
+              <h3>Accurate <em>and</em> concise</h3>
+              <p>Low-bit quantization inflates reasoning traces. On every model RTAQ gives the most favorable trade-off: the highest accuracy among quantized models, with generation length close to the original. Upper-left is better.</p>
+            </div>
+            <span class="tag data">Paper data</span>
+          </div>
+          <div class="panel">
+            <div class="scatter-legend" id="scatterLegend"></div>
+            <div class="scatter-grid" id="scatterGrid"></div>
+            <p class="note">Fig. 3 · average accuracy and average generation length over five benchmarks (GPQA-Diamond strict-match). Lengths are read from the vector figure.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== SPEEDUP ============================== -->
+    <section class="section dark" id="speedup">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">05 — Speed-up</span>
+          <h2 class="sec-title"><span class="outline">Faster, not just smaller</span><span class="solid">With sub 2-bit quantized experts</span></h2>
+        </header>
+
+        <div class="speed-grid">
+          <div class="speed-card reveal">
+            <div class="speed-num"><span class="x">×</span><span data-count="4.01" data-decimals="2">4.01</span></div>
+            <div class="speed-label">MLP layer speed-up</div>
+            <div class="speed-rel">
+              <div><span>BF16</span><i style="--w:100%"></i><b>1.00</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:24.9%"></i><b>0.25</b></div>
+            </div>
+            <div class="speed-cap">relative latency</div>
+          </div>
+          <div class="speed-card reveal">
+            <div class="speed-num"><span class="x">×</span><span data-count="2.33" data-decimals="2">2.33</span></div>
+            <div class="speed-label">End-to-end speed-up</div>
+            <div class="speed-rel">
+              <div><span>BF16</span><i style="--w:100%"></i><b>1.00</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:42.9%"></i><b>0.43</b></div>
+            </div>
+            <div class="speed-cap">relative latency</div>
+          </div>
+          <div class="speed-card reveal">
+            <div class="speed-num"><span data-count="7.8" data-decimals="1">7.8</span><span class="x">×</span></div>
+            <div class="speed-label">smaller routed experts</div>
+            <div class="speed-rel">
+              <div><span>BF16</span><i style="--w:100%"></i><b>16</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:12.8%"></i><b>2.05</b></div>
+            </div>
+            <div class="speed-cap">bits per routed-expert weight, incl. row-affine overhead</div>
+          </div>
+        </div>
+
+        <div class="race reveal" id="race">
+          <div class="race-head">
+            <span class="kicker">Decoding the same response</span>
+            <button class="btn-ctl ghost" id="raceReplay" type="button">Replay</button>
+          </div>
+          <div class="lane" data-lane="bf16">
+            <div class="lane-name">BF16</div>
+            <div class="lane-track"><div class="lane-fill"></div><div class="lane-tokens"></div></div>
+            <div class="lane-time mono">0.0 s</div>
+          </div>
+          <div class="lane rtaq" data-lane="rtaq">
+            <div class="lane-name">RTAQ</div>
+            <div class="lane-track"><div class="lane-fill"></div><div class="lane-tokens"></div></div>
+            <div class="lane-time mono">0.0 s</div>
+          </div>
+          <p class="note">Playback scaled to the reported ×2.33 end-to-end ratio — and since RTAQ keeps generation length near BF16, the response itself stays short.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================== BIBTEX ============================== -->
+    <section class="section" id="bibtex">
+      <div class="wrap">
+        <header class="sec-head reveal">
+          <span class="eyebrow">06 — Citation</span>
+          <h2 class="sec-title"><span class="outline">BibTeX</span><span class="solid">Cite RTAQ</span></h2>
+        </header>
+        <div class="bib reveal">
+          <button class="copy" id="copyBib" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+            <span>Copy</span>
+          </button>
+<pre id="bibText"><code>@article{choi2026rtaq,
+  title   = {RTAQ: Reasoning Termination-Aware Quantization
+             for Mixture-of-Experts Architecture},
+  author  = {Choi, MinJae and Kim, Seung-gyeom and
+             Yun, Sukmin and Han, Insu},
+  journal = {arXiv preprint},
+  year    = {2026}
+}</code></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================== FOOTER ============================== -->
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <img src="assets/img/logo-white.svg" alt="RTAQ" width="70" height="26">
+      <p>Reasoning Termination-Aware Quantization for Mixture-of-Experts Architecture</p>
+      <a href="#top" class="to-top">Back to top ↑</a>
+    </div>
+  </footer>
+
+  <!-- Lightbox & toast -->
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Enlarged figure" hidden>
+    <button class="lb-close" id="lbClose" type="button" aria-label="Close">×</button>
+    <div class="lb-scroll"><img id="lbImg" alt=""></div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="assets/js/data.js" defer></script>
+  <script src="assets/js/data-figures.js" defer></script>
+  <script src="assets/js/core.js" defer></script>
+  <script src="assets/js/hero.js" defer></script>
+  <script src="assets/js/router3d.js" defer></script>
+  <script src="assets/js/discovery.js" defer></script>
+  <script src="assets/js/method.js" defer></script>
+  <script src="assets/js/results.js" defer></script>
+</body>
+</html>
