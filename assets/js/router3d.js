@@ -111,8 +111,9 @@
       var r = stage.getBoundingClientRect();
       dpr = Math.min(window.devicePixelRatio || 1, 2);
       W = r.width; H = r.height;
-      canvas.width = W * dpr; canvas.height = H * dpr;
-      canvas.style.width = W + "px"; canvas.style.height = H + "px";
+      /* backing store only: the canvas is absolutely positioned and sized by CSS, so it never
+         holds the layout open when the viewport shrinks (e.g. an in-app viewer narrowing to a phone) */
+      canvas.width = Math.max(1, Math.round(W * dpr)); canvas.height = Math.max(1, Math.round(H * dpr));
       var half = 4.3 * Math.SQRT2;
       var s1 = (W / 2 - 18) / half;
       var vert = ((L - 1) * LS + 1.3) * Math.cos(pitch) + 2 * half * Math.sin(pitch);
@@ -347,6 +348,18 @@
     /* ---------- boot ---------- */
     resize(); setCam(); resetTrace(); draw();
     R.onResize(function () { resize(); setCam(); draw(); });
+    /* also follow the stage's own size (row height on desktop, viewer resizes, rotation) */
+    if ("ResizeObserver" in window) {
+      var roT = null, lastW = W, lastH = H;
+      new ResizeObserver(function () {
+        cancelAnimationFrame(roT);
+        roT = requestAnimationFrame(function () {
+          var r = stage.getBoundingClientRect();
+          if (Math.abs(r.width - lastW) < 1 && Math.abs(r.height - lastH) < 1) return;
+          resize(); setCam(); draw(); lastW = W; lastH = H;
+        });
+      }).observe(stage);
+    }
     /* autoplay whenever an unplayed trace comes into view; pause off-screen, resume on return */
     var autoT = null, resume = false;
     R.onVisible(stage, function (vis) {
