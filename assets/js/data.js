@@ -6,7 +6,7 @@
 window.RTAQ_LINKS = {
   arxiv: "",        // e.g. "https://arxiv.org/abs/xxxx.xxxxx"
   code: "https://github.com/minjaechoics/RTAQ",
-  checkpoints: ""   // e.g. "https://huggingface.co/<org>"
+  checkpoints: "https://huggingface.co/collections/minjaechoi/rtaq"
 };
 
 window.RTAQ_DATA = {
