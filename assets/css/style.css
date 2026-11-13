@@ -674,8 +674,8 @@ body { overflow-x: clip; }                       /* safety net: never scroll sid
   .table-hint { display: inline; }
 }
 @media (max-width: 520px) {
-  .hero-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 340px; margin-left: auto; margin-right: auto; }
-  .hero-links .pill { justify-content: center; padding: 0 14px; }
+  .hero-links { gap: 8px; }
+  .hero-links .pill { padding: 0 14px; }
   .term-name { font-size: 12.5px; }
   .block-head, .block-head.compact { display: block; }
   .block-head .step { display: inline-block; margin: 0 0 12px; }

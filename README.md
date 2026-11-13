@@ -27,9 +27,8 @@ Edit `window.RTAQ_LINKS` at the top of `assets/js/data.js`:
 
 ```js
 window.RTAQ_LINKS = {
-  pdf: "https://arxiv.org/pdf/xxxx.xxxxx",
   arxiv: "https://arxiv.org/abs/xxxx.xxxxx",
-  code: "https://github.com/<org>/RTAQ",
+  code: "https://github.com/minjaechoics/RTAQ",
   checkpoints: "https://huggingface.co/<org>"
 };
 ```

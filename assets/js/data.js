@@ -1,10 +1,9 @@
 /* =========================================================================
    RTAQ project page — numbers reported in the paper.
    Table 1, Fig. 2, Fig. 3, Fig. 4 (Fig. 5 lives in data-figures.js).
-   Edit LINKS below to point the hero buttons at your PDF / arXiv / code.
+   Edit LINKS below to point the hero buttons at arXiv / code / checkpoints.
    ========================================================================= */
 window.RTAQ_LINKS = {
-  pdf: "",          // e.g. "https://arxiv.org/pdf/xxxx.xxxxx"
   arxiv: "",        // e.g. "https://arxiv.org/abs/xxxx.xxxxx"
   code: "https://github.com/minjaechoics/RTAQ",
   checkpoints: ""   // e.g. "https://huggingface.co/<org>"
