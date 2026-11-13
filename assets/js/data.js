@@ -76,5 +76,6 @@ window.RTAQ_DATA = {
              8, 9, 9, 13, 9, 14, 10, 12, 11, 17, 8, 20, 13, 45, 260]
   },
 
-  speedup: { mlp: 4.01, e2e: 2.33 }
+  /* measured on an NVIDIA RTX PRO 6000 Workstation GPU */
+  speedup: { moe: 4.15, e2e: 2.09, kvCache: 3.8 }
 };

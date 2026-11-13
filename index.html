@@ -140,7 +140,7 @@
             <div class="stat-label">of BF16 accuracy retained <br>at ~2 bits</div>
           </div>
           <div class="stat accent">
-            <div class="stat-num">×<span data-count="2.33" data-decimals="2">2.33</span></div>
+            <div class="stat-num">×<span data-count="2.09" data-decimals="2">2.09</span></div>
             <div class="stat-label">end-to-end speed-up</div>
           </div>
         </div>
@@ -542,35 +542,36 @@
         <header class="sec-head reveal">
           <span class="eyebrow">05 — Speed-up</span>
           <h2 class="sec-title"><span class="outline">Faster, not just smaller</span><span class="solid">With sub 2-bit quantized experts</span></h2>
+          <p class="speed-env"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="9" y="9" width="6" height="6" fill="currentColor"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Measured on an NVIDIA RTX PRO 6000 Workstation GPU</p>
         </header>
 
         <div class="speed-grid">
           <div class="speed-card reveal">
-            <div class="speed-num"><span class="x">×</span><span data-count="4.01" data-decimals="2">4.01</span></div>
-            <div class="speed-label">MLP layer speed-up</div>
+            <div class="speed-num"><span class="x">×</span><span data-count="4.15" data-decimals="2">4.15</span></div>
+            <div class="speed-label">MoE layer speed-up</div>
             <div class="speed-rel">
               <div><span>BF16</span><i style="--w:100%"></i><b>1.00</b></div>
-              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:24.9%"></i><b>0.25</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:24.1%"></i><b>0.24</b></div>
             </div>
             <div class="speed-cap">relative latency</div>
           </div>
           <div class="speed-card reveal">
-            <div class="speed-num"><span class="x">×</span><span data-count="2.33" data-decimals="2">2.33</span></div>
+            <div class="speed-num"><span class="x">×</span><span data-count="2.09" data-decimals="2">2.09</span></div>
             <div class="speed-label">End-to-end speed-up</div>
             <div class="speed-rel">
               <div><span>BF16</span><i style="--w:100%"></i><b>1.00</b></div>
-              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:42.9%"></i><b>0.43</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:47.8%"></i><b>0.48</b></div>
             </div>
             <div class="speed-cap">relative latency</div>
           </div>
           <div class="speed-card reveal">
-            <div class="speed-num"><span data-count="7.8" data-decimals="1">7.8</span><span class="x">×</span></div>
-            <div class="speed-label">smaller routed experts</div>
+            <div class="speed-num"><span data-count="3.8" data-decimals="1">3.8</span><span class="x">×</span></div>
+            <div class="speed-label">greater KV-cache capacity</div>
             <div class="speed-rel">
-              <div><span>BF16</span><i style="--w:100%"></i><b>16</b></div>
-              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:12.8%"></i><b>2.05</b></div>
+              <div><span>BF16</span><i style="--w:26.3%"></i><b>1.0×</b></div>
+              <div><span class="r-lab">RTAQ</span><i class="r" style="--w:100%"></i><b>3.8×</b></div>
             </div>
-            <div class="speed-cap">bits per routed-expert weight, incl. row-affine overhead</div>
+            <div class="speed-cap">relative KV-cache capacity</div>
           </div>
         </div>
 
@@ -589,7 +590,7 @@
             <div class="lane-track"><div class="lane-fill"></div><div class="lane-tokens"></div></div>
             <div class="lane-time mono">0.0 s</div>
           </div>
-          <p class="note">Playback scaled to the reported ×2.33 end-to-end ratio — and since RTAQ keeps generation length near BF16, the response itself stays short.</p>
+          <p class="note">Playback scaled to the reported ×2.09 end-to-end ratio — and since RTAQ keeps generation length near BF16, the response itself stays short.</p>
         </div>
       </div>
     </section>
